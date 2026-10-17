@@ -44,3 +44,32 @@ def test_no_dateline_wrap_in_any_seed_route():
             for a, b in zip(lons[:-1], lons[1:]):
                 if a is not None and b is not None:
                     assert abs(a - b) <= 180
+
+
+def test_highlight_thickens_one_route_and_fades_others():
+    fig = build_map_figure(get_seed_frame(), highlight_id="SEED-004")
+    lines = [t for t in fig.data if t.mode == "lines"]
+    widths = sorted({t.line.width for t in lines})
+    assert widths == [2, 5]
+    assert sum(1 for t in lines if t.line.width == 5) == 1
+    assert all(t.opacity == 0.35 for t in lines if t.line.width == 2)
+
+
+def test_visible_frame_excludes_deleted_and_respects_toggle():
+    from modules.data_model import visible_frame
+    seed = get_seed_frame()
+    user = seed.head(3).copy()
+    user["shipment_id"], user["source"], user["status"] = "SHP-X", "user", "approved"
+    assert visible_frame(seed, [user], True)["shipment_id"].nunique() == 16
+    assert visible_frame(seed, [user], False)["shipment_id"].nunique() == 1
+    user["status"] = "deleted"
+    assert visible_frame(seed, [user], False).empty
+    assert visible_frame(seed, [], False).empty
+
+
+def test_view_is_fixed_world_not_auto_zoomed():
+    from modules.data_model import empty_frame
+    for df in (get_seed_frame(), get_seed_frame().head(3), empty_frame()):
+        geo = build_map_figure(df).layout.geo
+        assert geo.fitbounds is False
+        assert tuple(geo.lonaxis.range) == (-180, 180)

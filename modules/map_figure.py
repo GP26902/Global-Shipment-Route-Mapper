@@ -15,8 +15,11 @@ def _hover(row, n_stops: int) -> str:
     )
 
 
-def build_map_figure(df: pd.DataFrame, height: int = 620) -> go.Figure:
-    """One curved arc trace plus one marker trace per shipment, coloured by carrier."""
+def build_map_figure(df: pd.DataFrame, height: int = 620, highlight_id=None) -> go.Figure:
+    """One curved arc trace plus one marker trace per shipment, coloured by carrier.
+
+    highlight_id draws that shipment thicker and fades the others.
+    """
     fig = go.Figure()
     seen_carriers = set()
     if len(df):
@@ -24,11 +27,14 @@ def build_map_figure(df: pd.DataFrame, height: int = 620) -> go.Figure:
             carrier = grp["carrier"].iloc[0]
             color = carrier_color(carrier)
             lats, lons = build_route_path(list(zip(grp["lat"], grp["lon"])))
+            is_hl = highlight_id is not None and sid == highlight_id
+            dim = highlight_id is not None and not is_hl
             first_of_carrier = carrier not in seen_carriers
             seen_carriers.add(carrier)
             fig.add_trace(go.Scattergeo(
                 lat=lats, lon=lons, mode="lines",
-                line=dict(width=2, color=color),
+                line=dict(width=5 if is_hl else 2, color=color),
+                opacity=0.35 if dim else 1.0,
                 name=carrier, legendgroup=carrier,
                 showlegend=first_of_carrier, hoverinfo="skip",
             ))
@@ -36,7 +42,8 @@ def build_map_figure(df: pd.DataFrame, height: int = 620) -> go.Figure:
             fig.add_trace(go.Scattergeo(
                 lat=grp["lat"], lon=grp["lon"], mode="markers",
                 marker=dict(
-                    size=[10 if s in ("Origin", "Final Destination") else 6 for s in grp["stage_type"]],
+                    size=[(10 if s in ("Origin", "Final Destination") else 6) + (4 if is_hl else 0)
+                          for s in grp["stage_type"]],
                     symbol=["diamond" if s == "Final Destination" else "circle" for s in grp["stage_type"]],
                     color=color, line=dict(width=1, color="white"),
                 ),
@@ -50,6 +57,9 @@ def build_map_figure(df: pd.DataFrame, height: int = 620) -> go.Figure:
         showocean=True, oceancolor="#DCE9F5",
         showcountries=True, countrycolor="#B8C0CC",
         coastlinecolor="#9AA5B5", showframe=False,
+        # Fixed world view: never auto-zoom to the data extent.
+        fitbounds=False, projection_scale=1,
+        lonaxis_range=[-180, 180], lataxis_range=[-60, 85],
     )
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=0, b=0),

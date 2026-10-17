@@ -64,3 +64,12 @@ def data_label(source: str) -> str:
 
 def carrier_color(carrier: str) -> str:
     return CARRIER_COLORS.get(carrier, CARRIER_COLORS["Other"])
+
+
+def visible_frame(seed: pd.DataFrame, user_frames, show_examples: bool) -> pd.DataFrame:
+    """Rows to plot: optional seed routes plus user routes, never deleted ones."""
+    parts = ([seed] if show_examples else []) + list(user_frames)
+    if not parts:
+        return empty_frame()
+    df = pd.concat(parts, ignore_index=True)
+    return df[df["status"] != "deleted"].reset_index(drop=True)
