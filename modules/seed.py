@@ -77,6 +77,14 @@ CITIES = {
     "sf": ("San Francisco", "CA", "United States", 37.7749, -122.4194),
     "sacramento": ("Sacramento", "CA", "United States", 38.5816, -121.4944),
     "davis": ("Davis", "CA", "United States", 38.5449, -121.7405),
+    "katy": ("Katy", "TX", "United States", 29.7858, -95.8244),
+    "sugarland": ("Sugar Land", "TX", "United States", 29.6197, -95.6349),
+    "austin": ("Austin", "TX", "United States", 30.2672, -97.7431),
+    "sanantonio": ("San Antonio", "TX", "United States", 29.4241, -98.4936),
+    "waco": ("Waco", "TX", "United States", 31.5493, -97.1467),
+    "woodlands": ("The Woodlands", "TX", "United States", 30.1658, -95.4613),
+    "pearland": ("Pearland", "TX", "United States", 29.5636, -95.2861),
+    "galveston": ("Galveston", "TX", "United States", 29.3013, -94.7977),
 }
 
 # (shipment_id, carrier, product_class, [(stage_type, city_key), ...])
@@ -139,6 +147,22 @@ ROUTES = [
         ("Origin", "auckland"), ("Customs Facility", "honolulu"),
         ("Regional Distribution", "sf"), ("Last-Mile Facility", "sacramento"),
         ("Final Destination", "davis")]),
+    # Short local deliveries inside Texas, so State and City views have content.
+    ("SEED-016", "Amazon Logistics", "Apparel", [
+        ("Origin", "houston"), ("Last-Mile Facility", "katy"),
+        ("Final Destination", "sugarland")]),
+    ("SEED-017", "UPS", "Machinery & Industrial", [
+        ("Origin", "houston"), ("Sorting Hub", "austin"),
+        ("Final Destination", "sanantonio")]),
+    ("SEED-018", "FedEx", "Electronics", [
+        ("Origin", "dallas"), ("Sorting Hub", "waco"),
+        ("Regional Distribution", "houston"), ("Final Destination", "woodlands")]),
+    ("SEED-019", "USPS", "Food & Perishables", [
+        ("Origin", "houston"), ("Sorting Hub", "pearland"),
+        ("Final Destination", "galveston")]),
+    ("SEED-020", "DHL", "General Merchandise", [
+        ("Origin", "austin"), ("Regional Distribution", "houston"),
+        ("Last-Mile Facility", "beaumont"), ("Final Destination", "portarthur")]),
 ]
 
 

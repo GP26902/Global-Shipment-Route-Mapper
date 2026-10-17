@@ -18,6 +18,19 @@ CARRIER_COLORS = {
     "Other": "#6B7280",
 }
 
+# Lighter variants for the black map (brand dark tones would vanish on black;
+# USPS avoids the outgoing-blue ring colour).
+CARRIER_COLORS_DARK = {
+    "Amazon Logistics": "#FF9900",
+    "FedEx": "#B57BFF",
+    "UPS": "#C8975A",
+    "DHL": "#FFD200",
+    "USPS": "#9DB4D8",
+    "Other": "#9CA3AF",
+}
+INCOMING_COLOR = "#FF3B30"
+OUTGOING_COLOR = "#2E8BFF"
+
 PRODUCT_CLASSES = [
     "Apparel",
     "Food & Perishables",
@@ -60,6 +73,10 @@ def empty_frame() -> pd.DataFrame:
 def data_label(source: str) -> str:
     """Human-readable provenance label for a row's source."""
     return LABEL_SEED if source == SOURCE_SEED else LABEL_USER
+
+
+def carrier_color_dark(carrier: str) -> str:
+    return CARRIER_COLORS_DARK.get(carrier, CARRIER_COLORS_DARK["Other"])
 
 
 def carrier_color(carrier: str) -> str:

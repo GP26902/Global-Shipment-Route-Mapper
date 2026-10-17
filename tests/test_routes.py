@@ -63,3 +63,27 @@ def test_multi_stop_path_visits_every_stop_in_order():
 def test_empty_and_single_stop():
     assert build_route_path([]) == ([], [])
     assert build_route_path([(1.0, 2.0)]) == ([1.0], [2.0])
+
+
+from modules.routes import bowed_points
+
+
+def test_short_hops_bow_off_the_straight_line():
+    pts = bowed_points(29.76, -95.37, 30.27, -97.74)  # Houston -> Austin
+    assert pts[0] == (29.76, -95.37) and pts[-1] == (30.27, -97.74)
+    mid = pts[len(pts) // 2]
+    straight = ((29.76 + 30.27) / 2, (-95.37 - 97.74) / 2)
+    assert math.hypot(mid[0] - straight[0], mid[1] - straight[1]) > 0.05
+
+
+def test_outbound_and_return_legs_bow_to_opposite_sides():
+    a = bowed_points(29.76, -95.37, 30.27, -97.74)
+    b = bowed_points(30.27, -97.74, 29.76, -95.37)
+    mid_a, mid_b = a[len(a) // 2], b[len(b) // 2]
+    assert abs(mid_a[0] - mid_b[0]) > 0.05 or abs(mid_a[1] - mid_b[1]) > 0.05
+
+
+def test_long_hops_still_follow_the_great_circle():
+    lats, lons = build_route_path([(29.76, -95.37), (51.51, -0.13)])
+    gc = great_circle_points(29.76, -95.37, 51.51, -0.13)
+    assert len(lats) == len(gc) and lats[len(lats) // 2] == gc[len(gc) // 2][0]

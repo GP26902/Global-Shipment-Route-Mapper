@@ -62,12 +62,38 @@ def split_antimeridian(points: Sequence[Point]) -> Tuple[List[Optional[float]], 
     return lats, lons
 
 
+BOW_BELOW_KM = 1500.0
+
+
+def bowed_points(lat1: float, lon1: float, lat2: float, lon2: float,
+                 bow: float = 0.3, n: int = 24) -> List[Point]:
+    """Quadratic curve that bows to the LEFT of travel, so A->B and B->A separate.
+    Used for short hops, where a true great circle looks like a straight line."""
+    k = max(math.cos(math.radians((lat1 + lat2) / 2)), 0.1)
+    x1, y1, x2, y2 = lon1 * k, lat1, lon2 * k, lat2
+    dx, dy = x2 - x1, y2 - y1
+    cx, cy = (x1 + x2) / 2 - bow * dy, (y1 + y2) / 2 + bow * dx
+    pts: List[Point] = []
+    for i in range(n + 1):
+        t = i / n
+        x = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t ** 2 * x2
+        y = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t ** 2 * y2
+        pts.append((y, x / k))
+    pts[0], pts[-1] = (lat1, lon1), (lat2, lon2)
+    return pts
+
+
 def build_route_path(stops: Sequence[Point], step_deg: float = 2.0):
-    """Curved multi-stop path through stops in order -> (lats, lons) with None breaks."""
+    """Curved multi-stop path through stops in order -> (lats, lons) with None breaks.
+    Long hops follow the great circle; short hops (< 1500 km) get a visible bow."""
     if not stops:
         return [], []
     pts: List[Point] = [stops[0]]
     for (la1, lo1), (la2, lo2) in zip(stops[:-1], stops[1:]):
-        seg = great_circle_points(la1, lo1, la2, lo2, step_deg)
+        d = great_circle_km(la1, lo1, la2, lo2)
+        if 0 < d < BOW_BELOW_KM and abs(lo2 - lo1) <= 180:
+            seg = bowed_points(la1, lo1, la2, lo2, n=max(8, min(40, int(d / 25))))
+        else:
+            seg = great_circle_points(la1, lo1, la2, lo2, step_deg)
         pts.extend(seg[1:])
     return split_antimeridian(pts)

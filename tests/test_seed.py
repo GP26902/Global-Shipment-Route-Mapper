@@ -5,8 +5,8 @@ from modules.data_model import (
 from modules.seed import get_seed_frame
 
 
-def test_about_fifteen_routes():
-    assert get_seed_frame()["shipment_id"].nunique() == 15
+def test_twenty_routes():
+    assert get_seed_frame()["shipment_id"].nunique() == 20
 
 
 def test_schema_and_no_missing_coordinates():
