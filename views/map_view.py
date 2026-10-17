@@ -38,22 +38,30 @@ with st.sidebar:
                        key=f"dd_city_{country}_{state}")
     city = None if sel == "All cities" else sel
 
-view = apply_drilldown(data, country, state, city)
-
 parts = []
 if show_examples:
     parts.append(f"{LABEL_SEED} examples")
 if submitted:
     parts.append(f"your routes ({LABEL_USER})")
-n = view.routes["shipment_id"].nunique() if len(view.routes) else 0
+sources = " + ".join(parts)
+highlight = ss.get("last_id")
+
+# Fixed world map: always the full picture, whatever the filters say.
+world = apply_drilldown(data)
+n = world.routes["shipment_id"].nunique() if len(world.routes) else 0
 if data.empty:
     st.info("No routes to show. Turn on **Show example routes**, or log a shipment first.")
 else:
-    where = "World" if view.level == "World" else f"{view.level}: {view.label}"
-    st.caption(f"**{where}** · {n} route{'s' if n != 1 else ''} · "
-               f"{len(view.hotspots)} hotspot{'s' if len(view.hotspots) != 1 else ''} · "
-               + " + ".join(parts))
+    st.caption(f"**World** · {n} route{'s' if n != 1 else ''} · {len(world.hotspots)} hotspots · {sources}")
+st.plotly_chart(build_map_figure(world.routes, world.hotspots, height=640, highlight_id=highlight),
+                width="stretch", key="world_map")
 
-fig = build_map_figure(view.routes, view.hotspots, height=780, highlight_id=ss.get("last_id"),
-                       lon_range=view.lon_range, lat_range=view.lat_range)
-st.plotly_chart(fig, width="stretch")
+# Drill-down map: appears below the world map once a country, state or city is chosen.
+if country:
+    view = apply_drilldown(data, country, state, city)
+    k = view.routes["shipment_id"].nunique() if len(view.routes) else 0
+    st.caption(f"**{view.level}: {view.label}** · {k} route{'s' if k != 1 else ''} · "
+               f"{len(view.hotspots)} hotspot{'s' if len(view.hotspots) != 1 else ''} · {sources}")
+    st.plotly_chart(build_map_figure(view.routes, view.hotspots, height=640, highlight_id=highlight,
+                                     lon_range=view.lon_range, lat_range=view.lat_range),
+                    width="stretch", key="drill_map")

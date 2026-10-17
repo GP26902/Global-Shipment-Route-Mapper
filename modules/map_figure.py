@@ -84,10 +84,12 @@ def build_map_figure(routes: pd.DataFrame, hotspots: pd.DataFrame, height: int =
         lonaxis_range=list(lon_range), lataxis_range=list(lat_range),
     )
     fig.update_layout(
-        height=height, margin=dict(l=0, r=0, t=0, b=0),
+        height=height, margin=dict(l=0, r=0, t=44, b=0),
         paper_bgcolor=BG, plot_bgcolor=BG,
-        legend=dict(orientation="v", x=0.01, y=0.99, xanchor="left", yanchor="top",
-                    bgcolor="rgba(0,0,0,0.55)", font=dict(color="#FFFFFF", size=12)),
+        # Horizontal legend in its own strip above the map, so it never covers the routes.
+        legend=dict(orientation="h", x=0.0, y=1.0, xanchor="left", yanchor="bottom",
+                    bgcolor="rgba(0,0,0,0)", font=dict(color="#FFFFFF", size=12),
+                    itemsizing="constant"),
         hoverlabel=dict(bgcolor="#111111", font=dict(color="#FFFFFF")),
     )
     return fig

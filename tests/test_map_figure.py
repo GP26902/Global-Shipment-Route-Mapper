@@ -29,6 +29,12 @@ def test_legend_one_entry_per_carrier_plus_hotspot_keys():
     assert len(legend) == len(set(legend))
 
 
+def test_legend_is_horizontal_and_sits_above_the_map():
+    fig = fig_for()
+    assert fig.layout.legend.orientation == "h" and fig.layout.legend.yanchor == "bottom"
+    assert fig.layout.margin.t >= 30
+
+
 def test_hotspots_red_circles_and_blue_rings():
     fig = fig_for()
     red = [t for t in fig.data if t.name == "Incoming (red)"][0]
