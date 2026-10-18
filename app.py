@@ -8,5 +8,6 @@ st.set_page_config(page_title=APP_TITLE, page_icon="🌍", layout="wide")
 pages = st.navigation([
     st.Page("views/log_shipment.py", title="Log a shipment", icon="📝", default=True),
     st.Page("views/map_view.py", title="Map", icon="🗺️"),
+    st.Page("views/manage.py", title="Manage", icon="🔧"),
 ])
 pages.run()

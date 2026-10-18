@@ -1,15 +1,20 @@
 """Screen 1: log a shipment. Layout only; logic lives in modules/."""
+import time
+
 import streamlit as st
 
 from modules.checkpoints import (
-    combine_dt, delete_stop, generate_shipment_id, make_stop, stops_to_frame,
-    validate_route, validate_stop_input,
+    combine_dt, delete_stop, make_stop, stops_to_frame, validate_stop_input,
 )
 from modules.data_model import (
     CARRIER_COLORS, CARRIERS, LABEL_USER, PRODUCT_CLASSES, STAGE_TYPES,
 )
 from modules.geocoding import CITY_LEVEL_STAGES, Geocoder, build_fallback
 from modules.seed import CITIES
+from modules.shipments import SubmissionError, submit_shipment, validate_submission
+from modules.sheets_store import StoreError
+from modules.validation import prune_timestamps
+from views.common import DB_DOWN_MESSAGE, get_store, read_config, refresh_data
 
 USER_AGENT = "GlobalShipmentRouteMapper/1.0 (portfolio project; https://github.com/gp26902)"
 
@@ -34,8 +39,12 @@ def _clear() -> None:
 
 ss = st.session_state
 ss.setdefault("stops", [])
-ss.setdefault("submitted", [])      # confirmed shipments (DataFrames), this browser session only
+ss.setdefault("unsaved", [])        # shipments confirmed while the database was down (session only)
+ss.setdefault("submit_times", [])   # for the per-session rate limit
 ss.setdefault("last_id", None)
+ss.setdefault("last_code", None)
+ss.setdefault("last_status", None)
+ss.setdefault("last_saved", False)
 ss.setdefault("last_summary", None)
 ss.setdefault("form_gen", 0)
 ss.setdefault("flash", None)
@@ -46,12 +55,29 @@ st.info("**Privacy:** never enter street addresses or personal names. City, regi
         "city level and their postal code is not kept.")
 
 if ss.last_id:
-    st.success(f"Shipment **{ss.last_id}** logged ({LABEL_USER}). It is kept for this browser "
-               "session only until the database step is added.")
+    if not ss.last_saved:
+        st.warning(f"Shipment **{ss.last_id}** is shown on the map for this session only. It was **not saved**: "
+                   "the database is unreachable, so there is no delete code.")
+    elif ss.last_status == "pending":
+        st.success(f"Shipment **{ss.last_id}** received ({LABEL_USER}). It will appear on the map once the "
+                   "owner approves it.")
+    else:
+        st.success(f"Shipment **{ss.last_id}** logged ({LABEL_USER}).")
+    if ss.last_code:
+        st.warning("Save this delete code now. It is shown only once and cannot be recovered: only a hash "
+                   "is stored. Use it with the shipment ID on the Manage page to remove this shipment.")
+        st.code(ss.last_code, language=None)
+        if st.button("I have saved my code"):
+            ss.last_code = None
+            st.rerun()
     st.dataframe(ss.last_summary, hide_index=True, width="stretch")
     st.page_link("views/map_view.py", label="View on map", icon="🗺️")
     st.divider()
     st.subheader("Log another shipment")
+
+_cfg_store, _store_err = get_store()
+if _cfg_store is None:
+    st.warning(f"{DB_DOWN_MESSAGE} ({_store_err})")
 
 c1, c2 = st.columns(2)
 carrier = c1.selectbox("Carrier", CARRIERS, key="carrier")
@@ -131,18 +157,38 @@ else:
         cols[4].write(s["postal_code"] or "n/a")
         cols[5].write(f"{_fmt(s['arrived'])} / {_fmt(s['departed'])}")
         cols[6].button("Delete", key=f"del_{i}", on_click=_delete, args=(i,))
+    st.markdown("<style>.st-key-hp_wrap{position:absolute;left:-9999px;height:0;overflow:hidden}</style>",
+                unsafe_allow_html=True)
+    with st.container(key="hp_wrap"):
+        honeypot = st.text_input("Website (leave this empty)", key="hp_field", autocomplete="off")
     b1, b2, _ = st.columns([1.2, 1.2, 5])
     b1.button("Clear route", on_click=_clear)
     if b2.button("Confirm route", type="primary"):
-        problems = validate_route(ss.stops, carrier, product_class)
-        if problems:
-            for msg in problems:
+        now = time.time()
+        ss.submit_times = prune_timestamps(ss.submit_times, now)
+        mode = (read_config() or {}).get("approval_mode", "manual")
+        try:
+            if _cfg_store is None:
+                # Database down: validate the same way, keep it for this session only.
+                validate_submission(ss.stops, carrier, product_class, honeypot, ss.submit_times, now)
+                sid = "LOCAL-" + str(int(now))[-6:]
+                frame = stops_to_frame(ss.stops, carrier, product_class, sid, status="approved")
+                ss.unsaved = ss.unsaved + [frame]
+                code, saved = None, False
+            else:
+                res = submit_shipment(_cfg_store, ss.stops, carrier, product_class, mode, honeypot,
+                                      ss.submit_times, now)
+                sid, frame, code, saved = res.shipment_id, res.frame, res.delete_code, True
+                ss.last_status = res.status
+                refresh_data()
+        except SubmissionError as exc:
+            for msg in exc.errors:
                 st.error(msg)
+        except StoreError as exc:
+            st.error(f"Could not save to the database, nothing was stored. Please try again. ({exc})")
         else:
-            sid = generate_shipment_id()
-            frame = stops_to_frame(ss.stops, carrier, product_class, sid, status="approved")
-            ss.submitted = ss.submitted + [frame]
-            ss.last_id = sid
+            ss.submit_times = ss.submit_times + [now]
+            ss.last_id, ss.last_code, ss.last_saved = sid, code, saved
             ss.last_summary = frame[["stop_order", "stage_type", "facility", "city", "state",
                                      "country", "arrived", "departed"]]
             ss.stops = []

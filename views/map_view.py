@@ -5,6 +5,7 @@ from modules.data_model import LABEL_SEED, LABEL_USER, visible_frame
 from modules.map_figure import build_map_figure
 from modules.regions import apply_drilldown, city_options, country_options, state_options
 from modules.seed import get_seed_frame
+from views.common import DB_DOWN_MESSAGE, load_user_rows
 
 
 @st.cache_data
@@ -13,7 +14,10 @@ def load_seed():
 
 
 ss = st.session_state
-submitted = ss.get("submitted", [])
+saved, db_ok, db_err = load_user_rows()
+submitted = ([saved] if len(saved) else []) + list(ss.get("unsaved", []))
+if not db_ok:
+    st.warning(f"{DB_DOWN_MESSAGE} ({db_err})")
 
 st.markdown("<style>.block-container{padding-top:2.5rem;padding-bottom:0.5rem}</style>",
             unsafe_allow_html=True)
@@ -42,7 +46,7 @@ parts = []
 if show_examples:
     parts.append(f"{LABEL_SEED} examples")
 if submitted:
-    parts.append(f"your routes ({LABEL_USER})")
+    parts.append(f"submitted routes ({LABEL_USER})")
 sources = " + ".join(parts)
 highlight = ss.get("last_id")
 
