@@ -10,6 +10,7 @@ from modules.data_model import (
     CARRIER_COLORS, CARRIERS, LABEL_USER, PRODUCT_CLASSES, STAGE_TYPES,
 )
 from modules.geocoding import CITY_LEVEL_STAGES, Geocoder, build_fallback
+from modules.locations import country_names, state_names
 from modules.seed import CITIES
 from modules.shipments import SubmissionError, submit_shipment, validate_submission
 from modules.sheets_store import StoreError
@@ -80,10 +81,12 @@ if _cfg_store is None:
     st.warning(f"{DB_DOWN_MESSAGE} ({_store_err})")
 
 c1, c2 = st.columns(2)
-carrier = c1.selectbox("Carrier", CARRIERS, key="carrier")
-c1.markdown(f"<span style='color:{CARRIER_COLORS[carrier]};font-size:1.2em'>■</span> "
-            f"<small>{carrier} map colour</small>", unsafe_allow_html=True)
-product_class = c2.selectbox("Product class", PRODUCT_CLASSES, key="product_class")
+carrier = c1.selectbox("Carrier", CARRIERS, index=None, placeholder="Select a carrier", key="carrier")
+if carrier:
+    c1.markdown(f"<span style='color:{CARRIER_COLORS[carrier]};font-size:1.2em'>■</span> "
+                f"<small>{carrier} map colour</small>", unsafe_allow_html=True)
+product_class = c2.selectbox("Product class", PRODUCT_CLASSES, index=None,
+                             placeholder="Select a product class", key="product_class")
 
 st.subheader(f"Add stop {len(ss.stops) + 1}")
 if ss.flash:
@@ -91,22 +94,32 @@ if ss.flash:
     ss.flash = None
 
 g = ss.form_gen
+# Country and region sit outside the form so the region list can follow the country.
+# The country stays selected between stops; the region resets for each new stop.
+l1, l2 = st.columns(2)
+country = l1.selectbox("Country", country_names(), index=None, placeholder="Select a country",
+                       key="loc_country")
+regions = state_names(country)
+state = l2.selectbox("State / region (optional)", regions, index=None,
+                     placeholder=("Select a state / region" if regions
+                                  else "No regions listed" if country else "Select a country first"),
+                     disabled=not regions, key=f"loc_state_{g}_{country}")
+country, state = country or "", state or ""
+
 with st.form(f"stop_form_{g}"):
     a, b = st.columns(2)
     stage = a.selectbox("Stage type", STAGE_TYPES, index=0 if not ss.stops else 1, key=f"stage_{g}")
     facility = b.text_input("Facility name (optional)", max_chars=80, key=f"fac_{g}")
-    c, d, e = st.columns(3)
+    c, d = st.columns(2)
     city = c.text_input("City", max_chars=60, key=f"city_{g}")
-    state = d.text_input("State / region", max_chars=60, key=f"state_{g}")
-    country = e.text_input("Country", max_chars=60, key=f"country_{g}")
-    postal = st.text_input("Postal / PIN code (optional)", max_chars=12, key=f"postal_{g}",
-                           help="Used for hub stops only. Ignored for last-mile and destination.")
+    postal = d.text_input("Postal / PIN code (optional)", max_chars=12, key=f"postal_{g}",
+                          help="Used for hub stops only. Ignored for last-mile and destination.")
     t1, t2, t3, t4 = st.columns(4)
     arr_d = t1.date_input("Arrived date", value=None, key=f"ad_{g}")
     arr_t = t2.time_input("Arrived time", value=None, key=f"at_{g}")
     dep_d = t3.date_input("Departed date", value=None, key=f"dd_{g}")
     dep_t = t4.time_input("Departed time", value=None, key=f"dt_{g}")
-    st.caption("Times are optional and local to each facility.")
+    st.caption("Times are optional, local to each facility, and in 24-hour format (13:00 = 1 PM).")
     add = st.form_submit_button("Add stop", type="primary")
 
 if add:
