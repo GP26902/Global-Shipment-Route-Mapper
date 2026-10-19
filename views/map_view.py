@@ -1,6 +1,7 @@
 """Screen 2: map. Layout only; logic lives in modules/."""
 import streamlit as st
 
+from modules.borders import border_lines, country_extent
 from modules.data_model import LABEL_SEED, LABEL_USER, visible_frame
 from modules.map_figure import build_map_figure
 from modules.regions import apply_drilldown, city_options, country_options, state_options
@@ -66,6 +67,13 @@ if country:
     k = view.routes["shipment_id"].nunique() if len(view.routes) else 0
     st.caption(f"**{view.level}: {view.label}** · {k} route{'s' if k != 1 else ''} · "
                f"{len(view.hotspots)} hotspot{'s' if len(view.hotspots) != 1 else ''} · {sources}")
+    lon_range, lat_range = view.lon_range, view.lat_range
+    if not state and not city:                  # whole country chosen: frame the country, borders included
+        frame = country_extent(country)
+        if frame:
+            lon_range, lat_range = frame
     st.plotly_chart(build_map_figure(view.routes, view.hotspots, height=640, highlight_id=highlight,
-                                     lon_range=view.lon_range, lat_range=view.lat_range),
+                                     lon_range=lon_range, lat_range=lat_range,
+                                     borders=border_lines(country)),
                     width="stretch", key="drill_map")
+    st.caption("State and province borders: Natural Earth (public domain), simplified.")

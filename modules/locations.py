@@ -11,6 +11,8 @@ from typing import Dict, List, Optional
 
 import pycountry
 
+from modules.geocoding import _norm_country
+
 _COUNTRY_RENAMES = {"RU": "Russia", "TR": "Turkey"}   # pycountry has no common_name for these
 
 # English names for regions whose ISO name is local-language or romanised oddly.
@@ -73,3 +75,21 @@ def state_names(country: Optional[str]) -> List[str]:
         subs = [s for s in subs if s.type in ("State", "District")]   # 50 states + DC
     names = {_clean_region(s.code, s.name) for s in subs}
     return sorted(n for n in names if n)
+
+
+@lru_cache(maxsize=1)
+def _codes_by_norm() -> Dict[str, str]:
+    """Matching name (any common spelling) -> alpha-2 code."""
+    out: Dict[str, str] = {}
+    for c in pycountry.countries:
+        for n in (c.name, getattr(c, "official_name", None), getattr(c, "common_name", None)):
+            if n:
+                out.setdefault(_norm_country(n), c.alpha_2)
+    for display, code in _countries().items():
+        out[_norm_country(display)] = code
+    return out
+
+
+def country_code(name: Optional[str]) -> Optional[str]:
+    """ISO alpha-2 code for a country name as the app stores it ('United States' -> 'US')."""
+    return _codes_by_norm().get(_norm_country(name or ""))

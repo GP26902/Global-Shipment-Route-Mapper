@@ -11,6 +11,7 @@ from modules.regions import WORLD_LAT, WORLD_LON
 from modules.routes import build_route_path
 
 BG = "#000000"
+STATE_BORDER_COLOR = "#7A7A7A"   # dimmer than country borders (#9A9A9A), so countries still read first
 
 
 def _stop_hover(row, n_stops: int) -> str:
@@ -36,8 +37,16 @@ def outgoing_size(n: int, incoming: int = 0) -> float:
 
 
 def build_map_figure(routes: pd.DataFrame, hotspots: pd.DataFrame, height: int = 780,
-                     highlight_id=None, lon_range=WORLD_LON, lat_range=WORLD_LAT) -> go.Figure:
+                     highlight_id=None, lon_range=WORLD_LON, lat_range=WORLD_LAT,
+                     borders=None) -> go.Figure:
+    """borders: optional (lons, lats) of state/province outlines, drawn first so routes sit on top."""
     fig = go.Figure()
+    if borders:
+        fig.add_trace(go.Scattergeo(
+            lon=borders[0], lat=borders[1], mode="lines",
+            line=dict(width=0.6, color=STATE_BORDER_COLOR), name="State borders",
+            showlegend=False, hoverinfo="skip",
+        ))
     seen = set()
     if len(routes):
         for sid, grp in routes.sort_values(["shipment_id", "stop_order"]).groupby("shipment_id", sort=True):
