@@ -1,51 +1,16 @@
 """Parsing and checking of one stop-entry row. No Streamlit dependency.
 
-A row has: stage, country, state, a "City or ZIP" box, and two single date-and-time boxes.
+A row has: stage, country, state, a "City or ZIP" box, and arrival and departure dates.
+Dates only: the time of day is not collected, so each date is stored as midnight.
 """
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Dict, List, Optional, Tuple
 
 from modules.checkpoints import validate_stop_input
 
-_AMPM = r"(?:\s*([AaPp])\.?\s*[Mm]\.?)?"
-_ISO = re.compile(rf"^(\d{{4}})-(\d{{1,2}})-(\d{{1,2}})[ T]\s*(\d{{1,2}}):(\d{{2}})(?::\d{{2}})?{_AMPM}$")
-_US = re.compile(rf"^(\d{{1,2}})/(\d{{1,2}})/(\d{{2}}|\d{{4}})[ ,]+\s*(\d{{1,2}}):(\d{{2}})(?::\d{{2}})?{_AMPM}$")
-_DATE_ONLY = re.compile(r"^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4})$")
-_HELP = "Use MM/DD/YYYY HH:MM, for example 09/12/2026 3:01 AM or 09/12/2026 15:10."
 _DIGIT = re.compile(r"\d")
-
-
-def parse_datetime_text(text: Optional[str]) -> Optional[datetime]:
-    """Blank -> None. Accepts MM/DD/YYYY (US order) or YYYY-MM-DD, 12 or 24-hour time, A.M./P.M."""
-    t = " ".join((text or "").split())
-    if not t:
-        return None
-    if _DATE_ONLY.match(t):
-        raise ValueError(f"'{t}' has a date but no time. Add a time, or leave the box empty. {_HELP}")
-    m = _ISO.match(t)
-    if m:
-        y, mo, d, h, mi, ap = int(m[1]), int(m[2]), int(m[3]), int(m[4]), int(m[5]), m[6]
-    else:
-        m = _US.match(t)
-        if not m:
-            raise ValueError(f"Could not read '{t}'. {_HELP}")
-        mo, d, y, h, mi, ap = int(m[1]), int(m[2]), int(m[3]), int(m[4]), int(m[5]), m[6]
-        if y < 100:
-            y += 2000
-    if ap:
-        if not 1 <= h <= 12:
-            raise ValueError(f"'{t}': with AM/PM the hour must be 1 to 12.")
-        h = h % 12 + (12 if ap.lower() == "p" else 0)
-    elif h > 23:
-        raise ValueError(f"'{t}': the hour must be 0 to 23. {_HELP}")
-    if mi > 59:
-        raise ValueError(f"'{t}': minutes must be 0 to 59.")
-    try:
-        return datetime(y, mo, d, h, mi)
-    except ValueError:
-        raise ValueError(f"'{t}' is not a real date. {_HELP}") from None
 
 
 def split_city_zip(text: Optional[str]) -> Tuple[str, str]:
@@ -73,9 +38,11 @@ def split_city_zip(text: Optional[str]) -> Tuple[str, str]:
     return t, ""
 
 
-def row_is_blank(country: str, state: str, city_zip: str, arrival: str, departure: str) -> bool:
+def row_is_blank(country: str, state: str, city_zip: str,
+                 arrival: Optional[date], departure: Optional[date]) -> bool:
     """The stage box always has a value, so it is ignored when deciding if a row is empty."""
-    return not any((x or "").strip() for x in (country, state, city_zip, arrival, departure))
+    return (arrival is None and departure is None
+            and not any((x or "").strip() for x in (country, state, city_zip)))
 
 
 @dataclass
@@ -84,22 +51,18 @@ class RowResult:
     values: Optional[Dict[str, object]] = None   # stage, city, state, country, postal, arrived, departed
 
 
+def _midnight(d: Optional[date]) -> Optional[datetime]:
+    return datetime.combine(d, time.min) if d else None
+
+
 def read_row(stage: str, country: str, state: str, city_zip: str,
-             arrival_text: str, departure_text: str) -> RowResult:
+             arrival: Optional[date], departure: Optional[date]) -> RowResult:
     """Parse and validate one row. Does not geocode."""
     errors: List[str] = []
     city, postal = split_city_zip(city_zip)
     if not city and postal:
         errors.append("Type the city as well as the ZIP / postal code. A code on its own is not enough.")
-    arrived = departed = None
-    try:
-        arrived = parse_datetime_text(arrival_text)
-    except ValueError as exc:
-        errors.append(f"Arrival: {exc}")
-    try:
-        departed = parse_datetime_text(departure_text)
-    except ValueError as exc:
-        errors.append(f"Departure: {exc}")
+    arrived, departed = _midnight(arrival), _midnight(departure)
     errors += [e for e in validate_stop_input(stage or "", "", city, state or "", country or "", postal,
                                               arrived, departed)
                if not (not city and postal and e == "City is required.")]

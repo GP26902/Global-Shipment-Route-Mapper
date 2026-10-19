@@ -2,6 +2,7 @@
 import re
 import time
 
+import pandas as pd
 import streamlit as st
 
 from modules.checkpoints import MAX_STOPS, make_stop, stops_to_frame
@@ -28,8 +29,8 @@ def get_geocoder() -> Geocoder:
 
 COUNTRIES = country_names()
 WIDTHS = [0.35, 1.55, 1.6, 1.7, 1.85, 1.95, 1.95, 1.15]
-HELP_TIME = ("MM/DD/YYYY HH:MM, local to the facility. 3:01 AM, 03:01 and 15:10 all work, "
-             "and A.M./P.M. pasted from a tracking page is fine. Leave empty if unknown.")
+HELP_DATE = ("Pick from the calendar or type MM/DD/YYYY. Date only: the time of day is not collected. "
+             "Leave empty if unknown.")
 
 ss = st.session_state
 ss.setdefault("rows", [])           # ids of the stop rows, in order
@@ -76,7 +77,7 @@ def _values(rid: int) -> dict:
     return {"stage": ss.get(f"r{rid}_stage"), "country": country or "",
             "state": ss.get(f"r{rid}_state_{country}") or "",
             "city_zip": ss.get(f"r{rid}_city") or "",
-            "arr": ss.get(f"r{rid}_arr") or "", "dep": ss.get(f"r{rid}_dep") or ""}
+            "arr": ss.get(f"r{rid}_arr"), "dep": ss.get(f"r{rid}_dep")}
 
 
 def _is_blank(rid: int) -> bool:
@@ -191,10 +192,10 @@ for i, rid in enumerate(ss.rows):
         cols[4].text_input("City or ZIP", placeholder="City, ZIP optional", max_chars=72,
                            key=f"r{rid}_city", label_visibility=vis,
                            help="Type the city. You can add a ZIP / postal code after it, e.g. Stafford 77477.")
-        cols[5].text_input("Arrival", placeholder="MM/DD/YYYY HH:MM", max_chars=24,
-                           key=f"r{rid}_arr", label_visibility=vis, help=HELP_TIME)
-        cols[6].text_input("Departure", placeholder="MM/DD/YYYY HH:MM", max_chars=24,
-                           key=f"r{rid}_dep", label_visibility=vis, help=HELP_TIME)
+        cols[5].date_input("Arrival", value=None, format="MM/DD/YYYY", key=f"r{rid}_arr",
+                           label_visibility=vis, help=HELP_DATE)
+        cols[6].date_input("Departure", value=None, format="MM/DD/YYYY", key=f"r{rid}_dep",
+                           label_visibility=vis, help=HELP_DATE)
         if last:
             add_clicked = cols[7].button("Add stop", key="add_stop")
         else:
@@ -263,7 +264,10 @@ if b2.button("Submit route to map", key="submit_route"):
         else:
             ss.submit_times = ss.submit_times + [now]
             ss.last_id, ss.last_code, ss.last_saved = sid, code, saved
-            ss.last_summary = frame[["stop_order", "stage_type", "facility", "city", "state",
-                                     "country", "arrived", "departed"]]
+            summary = frame[["stop_order", "stage_type", "facility", "city", "state",
+                             "country", "arrived", "departed"]].copy()
+            for col in ("arrived", "departed"):
+                summary[col] = summary[col].apply(lambda t: "" if pd.isna(t) else t.strftime("%Y-%m-%d"))
+            ss.last_summary = summary
             ss.reset_rows = True
             st.rerun()

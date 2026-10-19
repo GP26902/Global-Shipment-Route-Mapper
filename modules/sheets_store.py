@@ -32,6 +32,14 @@ def _fmt_time(value, fmt: str) -> str:
     return "" if pd.isna(value) else pd.Timestamp(value).strftime(fmt)
 
 
+def _fmt_when(value) -> str:
+    """Date only when no time of day was recorded (the entry form collects dates); older rows keep their time."""
+    if pd.isna(value):
+        return ""
+    t = pd.Timestamp(value)
+    return t.strftime("%Y-%m-%d" if (t.hour, t.minute, t.second) == (0, 0, 0) else _TIME_FMT)
+
+
 def frame_to_rows(frame: pd.DataFrame, delete_hash: str, fp: str) -> List[list]:
     """Sheet rows for one shipment. The hash and fingerprint sit on the first row only."""
     rows = []
@@ -42,7 +50,7 @@ def frame_to_rows(frame: pd.DataFrame, delete_hash: str, fp: str) -> List[list]:
             "stage_type": d["stage_type"], "facility": d["facility"],
             "city": d["city"], "state": d["state"], "country": d["country"],
             "postal_code": d["postal_code"], "lat": float(d["lat"]), "lon": float(d["lon"]),
-            "arrived": _fmt_time(d["arrived"], _TIME_FMT), "departed": _fmt_time(d["departed"], _TIME_FMT),
+            "arrived": _fmt_when(d["arrived"]), "departed": _fmt_when(d["departed"]),
             "carrier": d["carrier"], "product_class": d["product_class"],
             "status": d["status"], "source": d["source"],
             "created_at": _fmt_time(d["created_at"], _STAMP_FMT),

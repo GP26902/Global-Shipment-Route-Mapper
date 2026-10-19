@@ -136,3 +136,16 @@ def test_failures_become_store_error():
 def test_rows_to_frame_rejects_wrong_header():
     with pytest.raises(StoreError):
         rows_to_frame([["a", "b"], ["1", "2"]])
+
+
+def test_dates_without_a_time_are_written_as_dates_and_older_times_are_kept():
+    stops = _stops()
+    stops[0]["departed"] = pd.Timestamp("2026-09-01").to_pydatetime()            # date only: midnight
+    stops[1]["arrived"] = pd.Timestamp("2026-09-10 17:30").to_pydatetime()       # an older row with a time
+    rows = frame_to_rows(stops_to_frame(stops, "UPS", "Electronics", "SHP-DATES001", status="approved"), "s$h", "fp")
+    dep, arr = SHEET_COLUMNS.index("departed"), SHEET_COLUMNS.index("arrived")
+    assert rows[0][dep] == "2026-09-01" and rows[1][arr] == "2026-09-10 17:30"
+    s, ws = _store()
+    s.append_shipment(stops_to_frame(stops, "UPS", "Electronics", "SHP-DATES001", status="approved"), "s$h", "fp")
+    df = s.load_all()
+    assert df["departed"].iloc[0] == pd.Timestamp("2026-09-01") and df["arrived"].iloc[1] == pd.Timestamp("2026-09-10 17:30")
